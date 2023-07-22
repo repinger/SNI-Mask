@@ -1,8 +1,7 @@
-from __future__ import with_statement
 import sys
 import socket
 import select, threading
-import SocketServer
+import socketserver
 import struct, random, time
 import logging
 
@@ -17,7 +16,7 @@ HOSTS = {
     '*'                  : 'SNI'
     }
 
-class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     allow_reuse_address = True
 
 def carry_around_add(a, b):
@@ -75,7 +74,7 @@ def http_filter(data):
     return request + '\r\n'
     #return request.replace('\r\n', '\n') + '\n'
 
-class SNIProxy(SocketServer.StreamRequestHandler):
+class SNIProxy(socketserver.StreamRequestHandler):
     remote = 0
     
     def parse(self, data):
@@ -138,7 +137,7 @@ class SNIProxy(SocketServer.StreamRequestHandler):
                     if len(data) <= 0:
                         break
                     sock.sendall(data)
-        except socket.error, e:
+        except socket.error as e:
             logging.warn('Forward: %s' % e)
         finally:
             sock.close()
@@ -283,7 +282,7 @@ class SNIProxy(SocketServer.StreamRequestHandler):
                                     break
                                 seq += len(data)
                                 sock.sendall(data)
-                    except socket.error, e:
+                    except socket.error as e:
                         logging.warn('Forward: %s %s' % (e, sni))
                         #print repr(rstword)
                     finally:
@@ -310,7 +309,7 @@ class SNIProxy(SocketServer.StreamRequestHandler):
             self.remote = remote
             mutex.release()
             event_ready.set()
-        except socket.error, e:
+        except socket.error as e:
             logging.warn(sni + ' ' + str(e))
             return
 
@@ -329,7 +328,7 @@ class SNIProxy(SocketServer.StreamRequestHandler):
                 
             mutex = threading.Lock()
             count = len(goodlist)
-            for i in xrange(count):
+            for i in range(count):
                 addr = (goodlist[i], port)
                 c = threading.Thread(target=self.connect, args=(addr, data, server_name, ttl, mss, keep, event_connected, event_ready, mutex,), name="connect")
                 c.start()
@@ -341,9 +340,9 @@ class SNIProxy(SocketServer.StreamRequestHandler):
                     
             if self.remote == False:
                 goodlist = []
-                for r in xrange(round_count):
+                for r in range(round_count):
                     count = len(addrlist)
-                    for i in xrange(count):
+                    for i in range(count):
                         addr = (addrlist[i], port)
                         c = threading.Thread(target=self.connect, args=(addr, data, server_name, ttl, mss, keep, event_connected, event_ready, mutex,), name="connect")
                         c.start()
@@ -358,7 +357,7 @@ class SNIProxy(SocketServer.StreamRequestHandler):
                         break
             event_ready.wait()
             return self.remote
-        except socket.error, e:
+        except socket.error as e:
             logging.warn(server_name + ' ' + str(e))
             return 0
             
@@ -381,13 +380,13 @@ class SNIProxy(SocketServer.StreamRequestHandler):
             remote = 0
 
             root_name = server_name[server_name.find('.'):]
-            if HOSTS.has_key(server_name):
+            if server_name in HOSTS:
                 rule = HOSTS[server_name]
             else:
-                if HOSTS.has_key(root_name):
+                if root_name in HOSTS:
                     rule = HOSTS[root_name]
                 else:
-                    if HOSTS.has_key('*'):
+                    if '*' in HOSTS:
                         if move_https(sock, data):
                             return
                         rule = HOSTS['*']
@@ -421,7 +420,7 @@ class SNIProxy(SocketServer.StreamRequestHandler):
                 logging.info('%s->%s %s' % (self.client_address[0], server_name, 'Unknow'))
                 sock.close()
                 return
-        except socket.error, e:
+        except socket.error as e:
             logging.warn(server_name + ' ' + str(e))
             sock.close()
 
@@ -442,7 +441,7 @@ def main():
         server = ThreadingTCPServer(INTERFACE, SNIProxy)
         logging.info("starting local at %s:%d" % tuple(server.server_address[:2]))
         server.serve_forever()
-    except socket.error, e:
+    except socket.error as e:
         logging.error(e)
     except KeyboardInterrupt:
         server.shutdown()
